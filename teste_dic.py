@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer, util
 # CONFIGURAÇÃO DO APP
 # -----------------------------
 st.set_page_config(page_title="Dicionário SAP Inteligente", page_icon="🤖")
-st.title("🤖 Dicionário de Transações SAP (IA local)")
+st.title("🤖 Dicionário de Transações SAP")
 st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.")
 
 # -----------------------------
@@ -97,4 +97,5 @@ if df is not None:
             for desc, cod, score in resultados:
                 if float(score) >= threshold:
                     st.write(f"- {desc} → **{cod}**  (confiança: {float(score):.2f})")
+
 
