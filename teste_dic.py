@@ -3,7 +3,7 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 
 st.set_page_config(page_title="Dicionário SAP Inteligente", page_icon="🤖")
-st.title("🤖 Dicionário de Transações SAP")
+st.title("🤖 Dicionário de Transações SAP (IA local)")
 st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.")
 
 # -----------------------------
@@ -74,10 +74,10 @@ if df is not None:
             reverse=True
         )[:top_k]
 
-        melhor_score = float(resultados[0][2]) if resultados else 0
+    melhor_score = float(resultados[0][2].item()) if len(resultados) > 0 else 0
 
     if melhor_score < threshold: 
-        st.error("❌ Nenhuma transação correspondente encontrada.")
+        st.error(" Nenhuma transação correspondente encontrada.")
         st.warning (
                 f"""
                 Base utilizada : **{"transacoes_sap.xlsx"}
@@ -91,8 +91,6 @@ if df is not None:
             )
 
     else :
-         st.info(f"🔎 Resultados para: **{consulta}**")
-         for desc, cod, score in resultados:
-             if score >= threshold :
-                st.write(f"- {desc} → **{cod}**  (confiança: {score:.2f})")
-
+        st.info(f"🔎 Resultados para: **{consulta}**")
+        for desc, cod, score in resultados:
+            st.write(f"- {desc} → **{cod}**  (confiança: {score:.2f})")
