@@ -1,69 +1,78 @@
 import streamlit as st
 import pandas as pd
-from rapidfuzz import process
+from sentence_transformers import SentenceTransformer, util
 
-st.set_page_config(page_title="Dicionário SAP", page_icon="💻")
-st.title("💻 Dicionário de Transações SAP")
+st.set_page_config(page_title="Dicionário SAP Inteligente", page_icon="🤖")
+st.title("🤖 Dicionário de Transações SAP (IA local)")
 st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.")
 
 # -----------------------------
-# CARREGAR PLANILHA LOCAL (do repositório)
+# CONFIGURAÇÕES
+# -----------------------------
+arquivo_base = "transacoes_sap.xlsx"
+modelo = SentenceTransformer("all-MiniLM-L6-v2")  # modelo leve e rápido
+
+# -----------------------------
+# CARREGAR PLANILHA
 # -----------------------------
 @st.cache_data
 def carregar_excel():
- df = pd.read_excel("transacoes_sap.xlsx")
- return df
+    df = pd.read_excel(arquivo_base)
+    df.columns = df.columns.str.strip().str.lower()
+
+    if "descrição" not in df.columns or "código" not in df.columns:
+        st.error("❌ A planilha deve conter as colunas 'Descrição' e 'Código'.")
+        return None
+
+    df = df.dropna(subset=["descrição", "código"])
+    df["descrição"] = df["descrição"].astype(str).str.strip()
+    df["código"] = df["código"].astype(str).str.strip()
+    return df
 
 df = carregar_excel()
 
 # -----------------------------
-# PREPARAR DICIONÁRIO EXPANDIDO
+# EXPANDIR DESCRIÇÕES (vírgulas viram várias instruções)
 # -----------------------------
-transacoes = {}
-for _, row in df.iterrows():
- descricoes = [d.strip().lower() for d in str(row["Descrição"]).split(",")]
-for desc in descricoes:
- transacoes[desc] = row["Código"]
-
-st.success(f"✅ {len(transacoes)} instruções carregadas com sucesso!")
+def expandir_descricoes(df):
+    descricoes, codigos = [], []
+    for _, row in df.iterrows():
+        partes = [d.strip() for d in str(row["descrição"]).split(",")]
+        for desc in partes:
+            if desc:  # ignora vazio
+                descricoes.append(desc.lower())
+                codigos.append(row["código"])
+    return descricoes, codigos
 
 # -----------------------------
-# CAMPO DE BUSCA
+# EMBEDDINGS
 # -----------------------------
-acao = st.text_input("O que você deseja fazer?")
+@st.cache_resource
+def preparar_embeddings(df):
+    descricoes, codigos = expandir_descricoes(df)
+    embeddings = modelo.encode(descricoes, convert_to_tensor=True)
+    return descricoes, codigos, embeddings
 
-if acao:
-        acao_proc = acao.lower()
+if df is not None:
+    descricoes, codigos, embeddings = preparar_embeddings(df)
 
-        # 🔹 Mostrar todas relacionadas à palavra
-        relacionados = {desc: cod for desc, cod in transacoes.items() if acao_proc in desc}
-        if relacionados:
-            st.info(f"📌 Transações relacionadas a '{acao}':")
-            for d, c in relacionados.items():
-                st.write(f"- {d} → **{c}**")
+    # -----------------------------
+    # CAMPO DE BUSCA
+    # -----------------------------
+    consulta = st.text_input("O que você deseja fazer?")
 
-        else:
-            # 🔹 Fuzzy matching
-            melhor_match, score, _ = process.extractOne(acao_proc, transacoes.keys())
-            if score and score > 75:
-                resultado = transacoes[melhor_match]
-                st.success(f"👉 Transação SAP: **{resultado}**  \n(interpretado como: *{melhor_match}*)")
-            else:
-                st.error("❌ Não encontrei nenhuma transação correspondente.")
-                st.warning(
-                    f"""
-                    ➡️ Base utilizada: **{"transacoes_sap.xlsx"}**  
-                    🔗 [Abrir planilha no GitHub]({'https://github.com/larissafeitosa24/meu-dicionario-sap/blob/main/'})  
+    if consulta:
+        consulta_emb = modelo.encode(consulta, convert_to_tensor=True)
 
-                    Para adicionar uma nova transação:  
-                    1. Abra o arquivo no GitHub.  
-                    2. Clique em **Edit** (se tiver permissão) ou **Download** para editar localmente.  
-                    3. Adicione uma nova linha com:  
-                       - **Descrição** (palavras-chave, separadas por vírgula se quiser várias)  
-                       - **Código SAP** correspondente  
-                    4. Salve/commite a mudança.  
-                    5. Recarregue o app.  
-                    """
-                )
+        # Calcular similaridade
+        scores = util.cos_sim(consulta_emb, embeddings)[0]
+        top_k = min(5, len(descricoes))  # mostrar até 5 melhores
+        resultados = sorted(
+            zip(descricoes, codigos, scores),
+            key=lambda x: x[2],
+            reverse=True
+        )[:top_k]
 
-
+        st.info(f"🔎 Resultados para: **{consulta}**")
+        for desc, cod, score in resultados:
+            st.write(f"- {desc} → **{cod}**  (confiança: {score:.2f})")
