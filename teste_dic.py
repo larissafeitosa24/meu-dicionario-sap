@@ -3,7 +3,7 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 
 st.set_page_config(page_title="Dicionário SAP Inteligente", page_icon="🤖")
-st.title("🤖 Dicionário de Transações SAP (IA local)")
+st.title("🤖 Dicionário de Transações SAP")
 st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.")
 
 # -----------------------------
@@ -11,6 +11,7 @@ st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.
 # -----------------------------
 arquivo_base = "transacoes_sap.xlsx"
 modelo = SentenceTransformer("all-MiniLM-L6-v2")  # modelo leve e rápido
+threshold = 0.60 # nota de corte minima de similaridade
 
 # -----------------------------
 # CARREGAR PLANILHA
@@ -21,7 +22,7 @@ def carregar_excel():
     df.columns = df.columns.str.strip().str.lower()
 
     if "descrição" not in df.columns or "código" not in df.columns:
-        st.error("❌ A planilha deve conter as colunas 'Descrição' e 'Código'.")
+        st.error("❌ A planilha deve conter as colunas 'Descrição' e 'Código'.") # testa pra verificar se a planilha está ok
         return None
 
     df = df.dropna(subset=["descrição", "código"])
@@ -73,6 +74,23 @@ if df is not None:
             reverse=True
         )[:top_k]
 
+    melhor_score = float(resultados[0][2]) if resultados else 0
+
+    if melhor_score < threshold: 
+        st.error("❌ Nenhuma transação correspondente encontrada.")
+        st.warning (
+                f"""
+                Base utilizada : **{"transacoes_sap.xlsx"}
+                Para adicionar uma nova transação :
+                1. Edite a planilha que está salva aqui : 'https://github.com/larissafeitosa24/meu-dicionario-sap'
+                2. Inclua uma nova linha com :
+                - **Descrição**( palavras-chave separada por virgula)
+                - **Código SAP**
+                3. Salve e recarregue o app
+                """
+            )
+
+    else :
         st.info(f"🔎 Resultados para: **{consulta}**")
         for desc, cod, score in resultados:
             st.write(f"- {desc} → **{cod}**  (confiança: {score:.2f})")
