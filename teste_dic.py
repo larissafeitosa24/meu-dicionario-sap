@@ -94,5 +94,6 @@ if df is not None:
         st.info(f"🔎 Resultados para: **{consulta}**")
         for desc, cod, score in resultados:
             if score >= threshold :
-            st.write(f"- {desc} → **{cod}**  (confiança: {score:.2f})")
+                st.write(f"- {desc} → **{cod}**  (confiança: {score:.2f})")
+
 
