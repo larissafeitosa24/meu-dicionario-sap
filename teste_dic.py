@@ -14,7 +14,7 @@ st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.
 # -----------------------------
 arquivo_base = "transacoes_sap.xlsx"  # nome do Excel no mesmo diretório do script
 modelo = SentenceTransformer("all-MiniLM-L6-v2")  # modelo de embeddings
-threshold = 0.60  # nota de corte mínima de similaridade
+threshold = 0.40  # nota de corte mínima de similaridade
 
 # -----------------------------
 # FUNÇÕES AUXILIARES
@@ -97,3 +97,4 @@ if df is not None:
             for desc, cod, score in resultados:
                 if float(score) >= threshold:
                     st.write(f"- {desc} → **{cod}**  (confiança: {float(score):.2f})")
+
