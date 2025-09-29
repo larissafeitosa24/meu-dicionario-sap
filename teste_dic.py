@@ -48,21 +48,5 @@ else:
 if score > 75:
  resultado = transacoes[melhor_match]
 st.success(f"👉 Transação SAP: **{resultado}** \n(interpretado como: *{melhor_match}*)")
-else:
-st.error("❌ Não encontrei nenhuma transação correspondente. Tente reformular a frase.")
-st.warning( 
-  f"""
-  Base Utilizada  : **{transacoes_sap.xlsx}**
-  [Abrir planilha no Github]({})
 
-  Para adicionar uma nova transação :
-  1. Abra o arquivo no github
-  2. Clique em **Edit** 
-  3. Adicione uma nova linha com :
-   - **Descrição** (palavras-chave, separado por virgula )
-   - **Código SAP** ( digite o código da transação SAP)
-  4. Salve a mudança
-  5. Recarregue a página  
- """
- )
-# Caso erro : nao encontrar nenhuma transação relacionada com a palavra digitada
+
