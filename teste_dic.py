@@ -12,7 +12,7 @@ st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.
 # -----------------------------
 # PARÂMETROS
 # -----------------------------
-arquivo_base = "transacoes_sap.xlsx"  # nome do Excel no mesmo diretório do script
+arquivo_base = r'C:\Users\U623373\OneDrive - IBERDROLA S.A\Auditoria Interna BR - General\8. Tecnologia_Cyber_Aud Contínua\04. PROJETOS - AUDITORIA CONTÍNUA\Teste - Larissa\transacoes_sap.xlsx'
 modelo = SentenceTransformer("all-MiniLM-L6-v2")  # modelo de embeddings
 threshold = 0.40  # nota de corte mínima de similaridade
 
@@ -85,7 +85,7 @@ if df is not None:
                 ➡️ Base utilizada: **{"transacoes_sap.xlsx"}**  
 
                 Para adicionar uma nova transação:  
-                1. Edite a planilha em 'https://github.com/larissafeitosa24/meu-dicionario-sap/tree/main'.  
+                1. Edite a planilha em 'https://iberdrola.sharepoint.com/:x:/r/sites/AuditoriaInterna/Shared%20Documents/General/8.%20Tecnologia_Cyber_Aud%20Cont%C3%ADnua/04.%20PROJETOS%20-%20AUDITORIA%20CONT%C3%8DNUA/Teste%20-%20Larissa/'.  
                 2. Inclua uma nova linha com:  
                    - **Descrição** (palavras-chave, separadas por vírgula)  
                    - **Código SAP**  
@@ -97,5 +97,4 @@ if df is not None:
             for desc, cod, score in resultados:
                 if float(score) >= threshold:
                     st.write(f"- {desc} → **{cod}**  (confiança: {float(score):.2f})")
-
 
