@@ -3,3 +3,5 @@ pandas
 openpyxl 
 sentence_transformers
 rapidfuzz
+typing
+
