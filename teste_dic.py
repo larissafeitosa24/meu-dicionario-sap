@@ -17,7 +17,7 @@ st.write("Pesquise em linguagem natural e veja a transação SAP correspondente.
 ARQUIVO_BASE = "transacoes_sap.xlsx"  # seu arquivo atual (com espaço no nome)
 ABA = "Planilha1"           # aba detectada no arquivo
 MODELO = SentenceTransformer("all-MiniLM-L6-v2")
-THRESHOLD = 0.40
+THRESHOLD = 0.50
 TOP_K = 5
 
 # Variações aceitas de nomes de colunas no Excel
@@ -115,4 +115,5 @@ if df is not None and len(df) > 0:
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
             else:
                 st.warning("Nenhum resultado acima do threshold.")
+
 
