@@ -108,12 +108,13 @@ if df is not None and len(df) > 0:
                         "Descrição (match)": desc,
                         "Transação": cod,
                         "Módulo": (mod if mod else "—"),
-                        "SAP": (sap if sap else "—"),
-                        "Confiança": round(float(score), 2)
+                        "SAP": (sap if sap else "—")
+                        ##"Confiança": round(float(score), 2)
                     })
             if dados_tabela:
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
             else:
                 st.warning("Nenhum resultado acima do threshold.")
+
 
 
