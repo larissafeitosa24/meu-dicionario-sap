@@ -100,7 +100,7 @@ if df is not None and len(df) > 0:
         if melhor_score < THRESHOLD:
             st.error("❌ Nenhuma transação correspondente encontrada.")
         else:
-            st.info(f"🔎 Resultados para: **{consulta}**) 
+            st.info(f"🔎 Resultados para: **{consulta}**") 
             dados_tabela = []
             for desc, cod, mod, sap, score in resultados:
                 if float(score) >= THRESHOLD:
@@ -115,6 +115,7 @@ if df is not None and len(df) > 0:
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
             else:
                 st.warning("Nenhum resultado acima do threshold.")
+
 
 
 
