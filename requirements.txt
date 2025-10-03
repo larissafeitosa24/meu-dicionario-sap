@@ -6,4 +6,6 @@ rapidfuzz
 typing
 torch
 scikit-learn
+tabulate
+
 
