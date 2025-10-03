@@ -18,8 +18,8 @@ st.write(
 # -----------------------------
 # PARÂMETROS
 # -----------------------------
-ARQUIVO_BASE = "transacoes_sap_expandido_prefixo.xlsx"
-ABA = "Planilha1"
+ARQUIVO_BASE = "transacoes_sap.xlsx"
+ABA = "Sheet1"
 MODELO = SentenceTransformer("all-MiniLM-L6-v2")
 
 # -----------------------------
@@ -165,3 +165,4 @@ if df is not None and len(df) > 0:
                 st.markdown(df_out.to_markdown(index=False), unsafe_allow_html=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
+
