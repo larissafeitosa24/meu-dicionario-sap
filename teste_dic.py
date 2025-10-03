@@ -7,13 +7,10 @@ from typing import List, Tuple
 # -----------------------------
 # CONFIGURAÇÃO DO APP
 # -----------------------------
-st.image("neo_logo.png, width=180)
+st.image("neo_logo.png", width=180)
 st.set_page_config(page_title="Dicionário SAP Inteligente", page_icon="🤖")
 st.title("⚡ Localizador de Transações SAP- Neoenergia")
-st.write("Este aplicativo foi desenvolvido para apoiar os auditores da Neoenergia na execução de suas atividades, 
-facilitando a localização da transação SAP mais adequada para cada necessidade. 
-Para realizar a pesquisa, digite abaixo o que deseja encontrar e o sistema retornará a transação correspondente.
-Ex: transação para exibir os pedidos.")
+st.write("Este aplicativo foi desenvolvido para apoiar os auditores da Neoenergia na execução de suas atividades,facilitando a localização da transação SAP mais adequada para cada necessidade. Para realizar a pesquisa, digite abaixo o que deseja encontrar e o sistema retornará a transação correspondente.Ex: transação para exibir os pedidos.")
 
 # -----------------------------
 # PARÂMETROS
@@ -119,7 +116,6 @@ if df is not None and len(df) > 0:
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
             else:
                 st.warning("Nenhum resultado acima do threshold.")
-
 
 
 
