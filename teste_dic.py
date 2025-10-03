@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import re
+import re, unicodedata, difflib
 from sentence_transformers import SentenceTransformer, util
 
 # -----------------------------
@@ -18,40 +18,34 @@ st.write(
 # -----------------------------
 # PARÂMETROS
 # -----------------------------
-ARQUIVO_BASE = "transacoes_sap.xlsx"
-ABA = "Sheet1"
+ARQUIVO_BASE = "transacoes_sap_expandido_prefixo.xlsx"
+ABA = "Planilha1"
 MODELO = SentenceTransformer("all-MiniLM-L6-v2")
 
-THRESHOLD_SEMANTICA = 0.45  # limite fixo para semântica
+# -----------------------------
+# FUNÇÕES AUXILIARES
+# -----------------------------
+def normalize(txt: str) -> str:
+    if not isinstance(txt, str):
+        txt = "" if pd.isna(txt) else str(txt)
+    t = txt.strip().lower()
+    t = unicodedata.normalize("NFD", t)
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    t = re.sub(r"\s+", " ", t)
+    return t
 
-COL_VARIANTS = {
-    "descricao": {"descrição", "descricao", "description", "desc"},
-    "codigo": {"transação", "transacao", "código", "codigo", "tcode"},
-    "modulo": {"módulo", "modulo", "module"},
-    "sap_system": {"sap", "sistema", "sap_system", "sap alvo", "target_sap"},
-    "frases_alternativas": {"frases_alternativas", "variacoes", "sinonimos"}
-}
+def tokenize_set(txt: str) -> set:
+    return set(re.findall(r"\w+", normalize(txt)))
+
+def destacar_termos(texto: str, consulta: str) -> str:
+    termos = consulta.lower().split()
+    for termo in termos:
+        texto = re.sub(rf"({re.escape(termo)})", r"**\1**", texto, flags=re.IGNORECASE)
+    return texto
 
 # -----------------------------
-# FUNÇÕES DE APOIO
+# CARREGAMENTO
 # -----------------------------
-def _normaliza_colunas(df: pd.DataFrame) -> pd.DataFrame:
-    base_cols = {c.lower().strip(): c for c in df.columns}
-    ren = {}
-    for padrao, variantes in COL_VARIANTS.items():
-        for v in variantes:
-            if v in base_cols:
-                ren[base_cols[v]] = padrao
-                break
-    df = df.rename(columns=ren)
-
-    for c in ["descricao", "codigo", "modulo", "sap_system", "frases_alternativas"]:
-        if c not in df.columns:
-            df[c] = ""
-
-    df["codigo"] = df["codigo"].astype(str).str.upper()
-    return df
-
 @st.cache_data
 def carregar_excel(caminho: str, aba: str) -> pd.DataFrame | None:
     try:
@@ -59,72 +53,88 @@ def carregar_excel(caminho: str, aba: str) -> pd.DataFrame | None:
     except Exception as e:
         st.error(f"❌ Erro ao ler o arquivo '{caminho}' (aba '{aba}'): {e}")
         return None
-
-    df.columns = df.columns.str.strip().str.lower()
-    df = _normaliza_colunas(df)
     return df
 
-def expandir_descricoes(df: pd.DataFrame):
-    descricoes, codigos, modulos, saps = [], [], [], []
-    for _, row in df.iterrows():
-        base_textos = [str(row["descricao"])]
-        if row.get("frases_alternativas"):
-            base_textos += str(row["frases_alternativas"]).split(";")
-
-        for desc in base_textos:
-            desc = desc.strip().lower()
-            if desc:
-                descricoes.append(desc)
-                codigos.append(row["codigo"])
-                modulos.append(row.get("modulo", "") or "")
-                saps.append(row.get("sap_system", "") or "")
-    return descricoes, codigos, modulos, saps
-
-@st.cache_resource
-def preparar_embeddings(df: pd.DataFrame):
-    descricoes, codigos, modulos, saps = expandir_descricoes(df)
-    embeddings = MODELO.encode(descricoes, convert_to_tensor=True)
-    return descricoes, codigos, modulos, saps, embeddings
-
-# -----------------------------
-# EXECUÇÃO DO APP
-# -----------------------------
 df = carregar_excel(ARQUIVO_BASE, ABA)
 
 if df is not None and len(df) > 0:
-    descricoes, codigos, modulos, saps, embeddings = preparar_embeddings(df)
+    # Garante colunas
+    if "frases_alternativas" not in df.columns:
+        df["frases_alternativas"] = ""
+
+    df["frases_alternativas"] = df["frases_alternativas"].fillna("").astype(str)
+
+    # Normalizações
+    df["_desc_norm"] = df["descricao"].apply(normalize)
+    df["_alt_list_norm"] = df["frases_alternativas"].apply(
+        lambda s: [normalize(p) for p in s.split(";") if p.strip()]
+    )
+    df["_token_set"] = df["_desc_norm"].apply(tokenize_set)
+
+    # Mapa para descrição oficial por código
+    code_to_desc = dict(zip(df["codigo"], df["descricao"]))
+
+    # Preparação embeddings
+    descricoes = [normalize(d) for d in df["descricao"].tolist()]
+    codigos = df["codigo"].tolist()
+    modulos = df.get("modulo", [""] * len(df)).tolist()
+    saps = df.get("sap_system", [""] * len(df)).tolist()
+    embeddings = MODELO.encode(descricoes, convert_to_tensor=True)
+
+    # -----------------------------
+    # ENTRADA DO USUÁRIO
+    # -----------------------------
     consulta = st.text_input("O que você deseja fazer?")
+    threshold_exato = st.slider("Limite para Expandido", 0.70, 0.95, 0.85, 0.01)
+    threshold_semantica = st.slider("Limite para Semântico", 0.0, 1.0, 0.35, 0.01)
 
     if consulta:
-        consulta_lower = consulta.lower().strip()
+        consulta_raw = consulta.strip()
+        qn = normalize(consulta_raw)
+        qtokens = tokenize_set(consulta_raw)
 
-        # 🔹 1. Verificação de correspondências exatas / alternativas
-        matches_expandido = df[
-            (df["descricao"].str.lower().str.contains(consulta_lower, na=False)) |
-            (df["frases_alternativas"].str.lower().str.contains(consulta_lower, na=False))
-        ]
+        # -------- 1) EXPANDIDO --------
+        mask_equal_desc = (df["_desc_norm"] == qn)
+        mask_equal_alt = df["_alt_list_norm"].apply(lambda lst: qn in lst)
+        equal_hits = df[mask_equal_desc | mask_equal_alt]
 
-        if len(matches_expandido) >= 1:
-            if (
-                len(matches_expandido) > 1 or 
-                consulta_lower.startswith("transação para") or
-                consulta_lower.startswith("transação que")
-            ):
-                # 🔹 Retorna expandido (1 ou mais matches fortes)
-                st.dataframe(
-                    matches_expandido[["descricao", "codigo", "modulo", "sap_system"]],
-                    use_container_width=True
-                )
-            else:
-                # Apenas 1 correspondência forte → expandido também
-                st.dataframe(
-                    matches_expandido[["descricao", "codigo", "modulo", "sap_system"]],
-                    use_container_width=True
-                )
+        def strip_prefix(q: str) -> str:
+            for pref in ("transacao para ", "transacao que "):
+                if q.startswith(pref):
+                    return q[len(pref):]
+            return q
+
+        qn_no_pref = strip_prefix(qn)
+        mask_pref_desc = (df["_desc_norm"] == qn_no_pref)
+        mask_pref_alt = df["_alt_list_norm"].apply(lambda lst: qn_no_pref in lst)
+        pref_hits = df[mask_pref_desc | mask_pref_alt] if qn != qn_no_pref else df.iloc[0:0]
+
+        df["__overlap__"] = df["_token_set"].apply(lambda s: len(s & qtokens))
+        overlap_hits = df[df["__overlap__"] >= 2].copy()
+        if not overlap_hits.empty:
+            overlap_hits["__sim__"] = overlap_hits["descricao"].apply(
+                lambda d: difflib.SequenceMatcher(None, normalize(d), qn).ratio()
+            )
+            overlap_hits.sort_values("__sim__", ascending=False, inplace=True)
+
+        if not equal_hits.empty:
+            out = equal_hits[["descricao", "codigo", "modulo", "sap_system"]].drop_duplicates("codigo")
+            st.success(f"{len(out)} resultado(s) encontrados (Expandido)")
+            st.dataframe(out, use_container_width=True)
+
+        elif not pref_hits.empty:
+            out = pref_hits[["descricao", "codigo", "modulo", "sap_system"]].drop_duplicates("codigo")
+            st.success(f"{len(out)} resultado(s) encontrados (Expandido com prefixo)")
+            st.dataframe(out, use_container_width=True)
+
+        elif not overlap_hits.empty:
+            best = overlap_hits.iloc[[0]][["descricao", "codigo", "modulo", "sap_system"]]
+            st.success("1 resultado encontrado (Expandido por overlap)")
+            st.dataframe(best, use_container_width=True)
 
         else:
-            # 🔹 2. Caso não encontre nada → vai para semântica
-            consulta_emb = MODELO.encode(consulta, convert_to_tensor=True)
+            # -------- 2) SEMÂNTICO --------
+            consulta_emb = MODELO.encode(consulta_raw, convert_to_tensor=True)
             scores = util.cos_sim(consulta_emb, embeddings)[0]
 
             resultados = sorted(
@@ -133,20 +143,25 @@ if df is not None and len(df) > 0:
                 reverse=True
             )
 
-            dados_tabela = []
-            for desc, cod, mod, sap, score in resultados:
-                if float(score) >= THRESHOLD_SEMANTICA:
-                    dados_tabela.append({
-                        "Descrição": desc,
-                        "Transação": cod,
-                        "Módulo": (mod if mod else "—"),
-                        "SAP": (sap if sap else "—")
-                    })
+            best_per_code = {}
+            for desc_phrase, cod, mod, sap, score in resultados:
+                s = float(score)
+                if s >= threshold_semantica:
+                    if cod not in best_per_code or s > best_per_code[cod]["score"]:
+                        best_per_code[cod] = {"score": s, "mod": mod, "sap": sap}
 
-            if dados_tabela:
-                st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
+            if best_per_code:
+                rows = []
+                for cod, info in sorted(best_per_code.items(), key=lambda it: it[1]["score"], reverse=True):
+                    desc_oficial = code_to_desc.get(cod, "")
+                    rows.append({
+                        "Descrição": destacar_termos(desc_oficial, consulta_raw),
+                        "Transação": cod,
+                        "Módulo": (info["mod"] if info["mod"] else "—"),
+                        "SAP": (info["sap"] if info["sap"] else "—"),
+                    })
+                df_out = pd.DataFrame(rows)
+                st.success(f"{len(df_out)} transações encontradas (Semântico, deduplicado)")
+                st.markdown(df_out.to_markdown(index=False), unsafe_allow_html=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
-
-
-
