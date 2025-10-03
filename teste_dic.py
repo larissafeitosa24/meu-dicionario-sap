@@ -18,7 +18,7 @@ st.write(
 # -----------------------------
 # PARÂMETROS
 # -----------------------------
-ARQUIVO_BASE = "transacoes_sap_expandido_prefixo.xlsx"
+ARQUIVO_BASE = "transacoes_sap.xlsx"
 ABA = "Planilha1"
 MODELO = SentenceTransformer("all-MiniLM-L6-v2")
 
@@ -147,3 +147,4 @@ if df is not None and len(df) > 0:
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
+
