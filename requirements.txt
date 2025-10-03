@@ -4,4 +4,6 @@ openpyxl
 sentence_transformers
 rapidfuzz
 typing
+torch
+scikit-learn
 
