@@ -1,27 +1,50 @@
 
+
 import streamlit as st
 import pandas as pd
+import re
+import unicodedata
 from sentence_transformers import SentenceTransformer, util
 from typing import List, Tuple
 
 # -----------------------------
 # CONFIGURAÇÃO DO APP
 # -----------------------------
-st.image("neo_logo.png", width=180)
-st.set_page_config(page_title="Dicionário SAP Inteligente", page_icon="🤖")
-st.title("⚡ Localizador de Transações SAP- Neoenergia")
-st.write("Este aplicativo foi desenvolvido para apoiar os auditores da Neoenergia na execução de suas atividades,facilitando a localização da transação SAP mais adequada para cada necessidade. Para realizar a pesquisa, digite abaixo o que deseja encontrar e o sistema retornará a transação correspondente.")
+st.set_page_config(page_title="Localizador de Transações SAP – Neoenergia", page_icon="⚡")
+
+# CSS para reduzir espaço do topo
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;   /* padrão é ~5rem, aqui reduzimos */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Logo + título alinhados
+col1, col2 = st.columns([1, 4])  # proporção 1:4 (logo / título)
+with col1:
+    st.image("neo_logo.png", width=100)
+with col2:
+    st.title("⚡ Localizador de Transações SAP – Neoenergia")
+
+# Subtítulo
+st.write(
+    "Este aplicativo foi desenvolvido para apoiar os auditores da Neoenergia na execução de suas atividades, "
+    "facilitando a localização da transação SAP mais adequada para cada necessidade. "
+    "Digite abaixo o que deseja encontrar."
+)
 
 # -----------------------------
 # PARÂMETROS
 # -----------------------------
-ARQUIVO_BASE = "transacoes_sap.xlsx"  # seu arquivo atual (com espaço no nome)
-ABA = "Planilha1"           # aba detectada no arquivo
+ARQUIVO_BASE = "transacoes_sap.xlsx"
+ABA = "Planilha1"
 MODELO = SentenceTransformer("all-MiniLM-L6-v2")
-THRESHOLD = 0.50
-TOP_K = 5
 
-# Variações aceitas de nomes de colunas no Excel
 COL_VARIANTS = {
     "descricao": {"descrição", "descricao", "description", "desc"},
     "codigo": {"transação", "transacao", "código", "codigo", "tcode"},
@@ -29,6 +52,9 @@ COL_VARIANTS = {
     "sap_system": {"sap", "sistema", "sap_system", "sap alvo", "target_sap"},
 }
 
+# -----------------------------
+# FUNÇÕES DE APOIO
+# -----------------------------
 def _normaliza_colunas(df: pd.DataFrame) -> pd.DataFrame:
     base_cols = {c.lower().strip(): c for c in df.columns}
     ren = {}
@@ -83,43 +109,66 @@ def preparar_embeddings(df: pd.DataFrame):
     embeddings = MODELO.encode(descricoes, convert_to_tensor=True)
     return descricoes, codigos, modulos, saps, embeddings
 
+def destacar_termos(texto: str, consulta: str) -> str:
+    termos = consulta.lower().split()
+    for termo in termos:
+        texto = re.sub(rf"({termo})", r"**\1**", texto, flags=re.IGNORECASE)
+    return texto
+
+# -----------------------------
+# EXECUÇÃO DO APP
+# -----------------------------
 df = carregar_excel(ARQUIVO_BASE, ABA)
 
 if df is not None and len(df) > 0:
     descricoes, codigos, modulos, saps, embeddings = preparar_embeddings(df)
     consulta = st.text_input("O que você deseja fazer?")
+
+    # Sliders para calibrar thresholds
+    threshold_exato = st.slider("Limite para Exato Expandido", 0.70, 0.95, 0.85, 0.01)
+    threshold_semantica = st.slider("Limite para Busca Semântica", 0.0, 1.0, 0.35, 0.01)
+
     if consulta:
         consulta_emb = MODELO.encode(consulta, convert_to_tensor=True)
         scores = util.cos_sim(consulta_emb, embeddings)[0]
-        k = min(TOP_K, len(descricoes))
+
         resultados = sorted(
             zip(descricoes, codigos, modulos, saps, scores),
             key=lambda x: float(x[4]),
             reverse=True
-        )[:k]
-        melhor_score = float(resultados[0][4]) if len(resultados) > 0 else 0.0
-        if melhor_score < THRESHOLD:
-            st.error("❌ Nenhuma transação correspondente encontrada.")
+        )
+
+        if not resultados:
+            st.error("❌ Nenhuma transação encontrada.")
         else:
-            st.info(f"🔎 Resultados para: **{consulta}**") 
-            dados_tabela = []
-            for desc, cod, mod, sap, score in resultados:
-                if float(score) >= THRESHOLD:
-                    dados_tabela.append({
-                        "Descrição (match)": desc,
-                        "Transação": cod,
-                        "Módulo": (mod if mod else "—"),
-                        "SAP": (sap if sap else "—")
-                        ##"Confiança": round(float(score), 2)
-                    })
-            if dados_tabela:
+            melhor_score = float(resultados[0][4])
+
+            # 1) Exato expandido
+            if melhor_score >= threshold_exato:
+                desc, cod, mod, sap, score = resultados[0]
+                dados_tabela = [{
+                    "Descrição": desc,
+                    "Transação": cod,
+                    "Módulo": (mod if mod else "—"),
+                    "SAP": (sap if sap else "—")
+                }]
+                st.caption("🔎 Modo de busca: **Exato expandido**")
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
+
+            # 2) Busca semântica
             else:
-                st.warning("Nenhum resultado acima do threshold.")
-
-
-
-
-
-
-
+                dados_tabela = []
+                for desc, cod, mod, sap, score in resultados:
+                    if float(score) >= threshold_semantica:
+                        desc_destacada = destacar_termos(desc, consulta)
+                        dados_tabela.append({
+                            "Descrição": desc_destacada,
+                            "Transação": cod,
+                            "Módulo": (mod if mod else "—"),
+                            "SAP": (sap if sap else "—")
+                        })
+                if dados_tabela:
+                    st.caption("🔎 Modo de busca: **Semântica**")
+                    st.markdown(pd.DataFrame(dados_tabela).to_markdown(index=False), unsafe_allow_html=True)
+                else:
+                    st.warning("Nenhum resultado acima do threshold definido.")
