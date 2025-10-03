@@ -27,7 +27,7 @@ st.markdown(
 # Logo + título alinhados
 col1, col2 = st.columns([1, 4])  # proporção 1:4 (logo / título)
 with col1:
-    st.image("neo_logo.png", width=100)
+    st.image("neo_logo.png", width=150)
 with col2:
     st.title("⚡ Localizador de Transações SAP – Neoenergia")
 
@@ -172,3 +172,4 @@ if df is not None and len(df) > 0:
                     st.markdown(pd.DataFrame(dados_tabela).to_markdown(index=False), unsafe_allow_html=True)
                 else:
                     st.warning("Nenhum resultado acima do threshold definido.")
+
