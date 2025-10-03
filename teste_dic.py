@@ -22,7 +22,7 @@ ARQUIVO_BASE = "transacoes_sap.xlsx"
 ABA = "Sheet1"
 MODELO = SentenceTransformer("all-MiniLM-L6-v2")
 
-THRESHOLD_SEMANTICA = 0.35  # limite fixo para semântica
+THRESHOLD_SEMANTICA = 0.45  # limite fixo para semântica
 
 COL_VARIANTS = {
     "descricao": {"descrição", "descricao", "description", "desc"},
@@ -147,5 +147,6 @@ if df is not None and len(df) > 0:
                 st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
 
