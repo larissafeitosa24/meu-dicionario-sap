@@ -1,5 +1,5 @@
 import nltk
-ntlk.download('rslp', quiet=True)
+nltk.download('rslp', quiet=True)
 import streamlit as st
 import pandas as pd
 import re, unicodedata, difflib
@@ -242,5 +242,6 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
 
