@@ -5,47 +5,48 @@ import pandas as pd
 import re, unicodedata, difflib
 from sentence_transformers import SentenceTransformer, util
 from nltk.stem import RSLPStemmer
+import nltk
 
+# -----------------------------
+# AJUSTE DE LAYOUT (CSS CUSTOM)
+# -----------------------------
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    div[data-testid="stVerticalBlock"] {
+        gap: 0.6rem;
+    }
+    .stTextInput, .stMultiSelect {
+        margin-top: -0.3rem;
+        margin-bottom: 0.5rem;
+    }
+    img {
+        margin-bottom: -0.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # -----------------------------
 # CONFIGURAÇÃO DO APP
 # -----------------------------
 st.set_page_config(page_title="Localizador de Transações SAP – Neoenergia", page_icon="⚡")
-st.markdown(
-"""
-<style>
-/* Remove padding padrão do Streamlit */
-.block-container {
-padding-top: 1rem;
-padding-bottom: 1rem;
-}
-
-/* Centraliza menos verticalmente e encurta espaço entre seções */
-div[data-testid="stVerticalBlock"] {
-gap: 0.6rem;
-}
-
-/* Deixa os inputs mais próximos do topo */
-.stTextInput, .stMultiSelect {
-margin-top: -0.3rem;
-margin-bottom: 0.5rem;
-}
-
-/* Reduz o espaçamento abaixo da imagem/logo */
-img {
-margin-bottom: -0.5rem;
-}
-</style>
-""",
-unsafe_allow_html=True,
-)
 st.image("neo_logo.png", width=180)
 st.title("⚡ Localizador de Transações SAP – Neoenergia")
 st.write(
-    "Este aplicativo foi desenvolvido para apoiar os auditores da Neoenergia na execução de suas atividades, "
-    "facilitando a localização da transação SAP mais adequada para cada necessidade. "
-    "Você pode realizar uma busca livre e, se desejar, usar os filtros de palavras-chave para refinar os resultados."
+    "Este aplicativo apoia os auditores da Neoenergia na localização da transação SAP mais adequada. "
+    "Selecione um filtro de palavra-chave para começar ou digite o que deseja encontrar."
 )
+
+# -----------------------------
+# DOWNLOAD DE MODELOS NECESSÁRIOS
+# -----------------------------
+nltk.download('rslp', quiet=True)
 
 # -----------------------------
 # PARÂMETROS
@@ -92,11 +93,9 @@ def stem(texto):
     except:
         return texto.lower()
 
-def aplicar_filtro(df, selecionadas, livres):
-    """Filtra por palavras do multiselect e campo livre"""
-    palavras = []
-    palavras += [normalize(p) for p in selecionadas]
-    palavras += [normalize(p) for p in livres.split(";") if livres.strip()]
+def aplicar_filtro(df, selecionadas):
+    """Filtra por palavras do multiselect"""
+    palavras = [normalize(p) for p in selecionadas]
     if not palavras:
         return df
     mask = df["descricao"].apply(lambda d: all(p in normalize(d) for p in palavras))
@@ -139,18 +138,29 @@ if df is not None and len(df) > 0:
     # -----------------------------
     # ENTRADAS DO USUÁRIO
     # -----------------------------
-    consulta = st.text_input("🧠 O que você deseja fazer?")
+    opcoes_filtro = [
+        "Auditoria", "Compliance", "Financeiro", "Compras", "Contratos",
+        "Orçamento", "Planejamento", "Projetos", "Risco", "TI", "Materiais", "RH"
+    ]
+    filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave", opcoes_filtro)
+    consulta = st.text_input("🧠 Busca livre (opcional)")
 
-    # 🔹 Opções pré-definidas de filtro
-    opcoes_filtro = ["Auditoria", "Contrato", "Projeto", "Pagamento", "Orçamento", "Risco", "Controle", "Financeiro", "Compras", "Manutenção","Programa","Contábil"]
-    filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave (opcional)", opcoes_filtro)
-   
-    threshold_exato = 0.85
-
-    if consulta:
+    # Executa se houver filtro OU busca
+    if filtro_multiselect or consulta.strip():
         consulta_raw = consulta.strip()
         qn = normalize(consulta_raw)
         qtokens = tokenize_set(consulta_raw)
+
+        # Caso sem busca (só filtro)
+        if not consulta.strip():
+            st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
+            df_filtrado = aplicar_filtro(df[["descricao", "codigo", "modulo", "sap_system"]], filtro_multiselect)
+            if not df_filtrado.empty:
+                st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
+                st.dataframe(df_filtrado, use_container_width=True)
+            else:
+                st.warning("Nenhuma transação encontrada com esses filtros.")
+            st.stop()
 
         # -------- 1) EXPANDIDO --------
         mask_equal_desc = (df["_desc_norm"] == qn)
@@ -178,24 +188,24 @@ if df is not None and len(df) > 0:
 
         if not equal_hits.empty:
             out = equal_hits[["descricao", "codigo", "modulo", "sap_system"]].drop_duplicates("codigo")
-            out = aplicar_filtro(out, filtro_multiselect, filtro_livre)
+            out = aplicar_filtro(out, filtro_multiselect)
             st.success(f"{len(out)} resultado(s) encontrados (Expandido)")
             st.dataframe(out, use_container_width=True)
 
         elif not pref_hits.empty:
             out = pref_hits[["descricao", "codigo", "modulo", "sap_system"]].drop_duplicates("codigo")
-            out = aplicar_filtro(out, filtro_multiselect, filtro_livre)
+            out = aplicar_filtro(out, filtro_multiselect)
             st.success(f"{len(out)} resultado(s) encontrados (Expandido com prefixo)")
             st.dataframe(out, use_container_width=True)
 
         elif not overlap_hits.empty:
             best = overlap_hits.iloc[[0]][["descricao", "codigo", "modulo", "sap_system"]]
-            best = aplicar_filtro(best, filtro_multiselect, filtro_livre)
+            best = aplicar_filtro(best, filtro_multiselect)
             st.success("1 resultado encontrado (Expandido por overlap)")
             st.dataframe(best, use_container_width=True)
 
         else:
-            # -------- 2) SEMÂNTICO APRIMORADO --------
+            # -------- 2) SEMÂNTICO --------
             consulta_emb = MODELO.encode(qn, convert_to_tensor=True, normalize_embeddings=True)
             scores = util.cos_sim(consulta_emb, embeddings)[0].cpu().numpy()
 
@@ -211,10 +221,7 @@ if df is not None and len(df) > 0:
             for desc_phrase, cod, mod, sap, score in resultados:
                 s = float(score)
                 bonus_literal = 0.07 if qn in desc_phrase else 0.0
-                if stem(qn) in [stem(w) for w in desc_phrase.split()]:
-                    bonus_stem = 0.05
-                else:
-                    bonus_stem = 0.0
+                bonus_stem = 0.05 if stem(qn) in [stem(w) for w in desc_phrase.split()] else 0.0
                 s_final = s + bonus_literal + bonus_stem
 
                 if s_final >= threshold_semantica or bonus_literal > 0:
@@ -232,7 +239,7 @@ if df is not None and len(df) > 0:
                         "SAP": (info["sap"] if info["sap"] else "—"),
                     })
                 df_out = pd.DataFrame(rows)
-                df_out = aplicar_filtro(df_out, filtro_multiselect, filtro_livre)
+                df_out = aplicar_filtro(df_out, filtro_multiselect)
                 if not df_out.empty:
                     st.success(f"{len(df_out)} transações encontradas (Semântico aprimorado)")
                     df_out["Descrição"] = df_out["descricao"].apply(lambda d: destacar_termos(d, consulta_raw))
@@ -241,7 +248,3 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
-
-
-
-
