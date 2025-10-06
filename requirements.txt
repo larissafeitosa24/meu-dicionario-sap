@@ -8,6 +8,9 @@ torch
 scikit-learn
 tabulate
 nltk
+regex
+openpyxl
+
 
 
 
