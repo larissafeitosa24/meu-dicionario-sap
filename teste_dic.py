@@ -139,8 +139,8 @@ if df is not None and len(df) > 0:
     # ENTRADAS DO USUÁRIO
     # -----------------------------
     opcoes_filtro = [
-        "Auditoria", "Compliance", "Financeiro", "Compras", "Contratos",
-        "Orçamento", "Planejamento", "Projetos", "Risco", "TI", "Materiais", "RH"
+        "Auditoria", "Programa", "Compras", "Contratos",
+        "Orçamento", "Planejamento", "Projetos","Materiais","Contábil"
     ]
     filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave", opcoes_filtro)
     consulta = st.text_input("🧠 Busca livre (opcional)")
@@ -248,3 +248,4 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
