@@ -7,5 +7,7 @@ typing
 torch
 scikit-learn
 tabulate
+nltk.stem
+
 
 
