@@ -1,8 +1,11 @@
+import nltk
+ntlk.download('rslp', quiet=True)
 import streamlit as st
 import pandas as pd
 import re, unicodedata, difflib
 from sentence_transformers import SentenceTransformer, util
 from nltk.stem import RSLPStemmer
+
 
 # -----------------------------
 # CONFIGURAÇÃO DO APP
@@ -239,4 +242,5 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
