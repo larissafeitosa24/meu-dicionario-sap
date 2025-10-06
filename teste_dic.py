@@ -85,8 +85,8 @@ if df is not None and len(df) > 0:
     # ENTRADA DO USUÁRIO
     # -----------------------------
     consulta = st.text_input("O que você deseja fazer?")
-    threshold_exato = st.slider("Limite para Expandido", 0.70, 0.95, 0.85, 0.01)
-    threshold_semantica = st.slider("Limite para Semântico", 0.0, 1.0, 0.35, 0.01)
+    threshold_exato = 0.85
+    threshold_semantica = 0.35
 
     if consulta:
         consulta_raw = consulta.strip()
@@ -165,4 +165,5 @@ if df is not None and len(df) > 0:
                 st.markdown(df_out.to_markdown(index=False), unsafe_allow_html=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
