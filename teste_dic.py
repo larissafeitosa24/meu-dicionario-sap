@@ -86,7 +86,7 @@ if df is not None and len(df) > 0:
     # -----------------------------
     consulta = st.text_input("O que você deseja fazer?")
     threshold_exato = 0.85
-    threshold_semantica = 0.45
+    threshold_semantica = 0.50
 
     if consulta:
         consulta_raw = consulta.strip()
@@ -165,6 +165,7 @@ if df is not None and len(df) > 0:
                 st.markdown(df_out.to_markdown(index=False), unsafe_allow_html=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
 
 
