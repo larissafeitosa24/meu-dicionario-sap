@@ -20,17 +20,19 @@ st.write(
 # -----------------------------
 ARQUIVO_BASE = "transacoes_sap.xlsx"
 ABA = "Sheet1"
-MODELO = SentenceTransformer("all-MiniLM-L6-v2")
+MODELO = SentenceTransformer("multi-qa-mpnet-base-dot-v1")  # modelo mais robusto
 
 # -----------------------------
 # FUNÇÕES AUXILIARES
 # -----------------------------
 def normalize(txt: str) -> str:
+    """Remove acentos, normaliza e limpa espaços/símbolos"""
     if not isinstance(txt, str):
         txt = "" if pd.isna(txt) else str(txt)
     t = txt.strip().lower()
-    t = unicodedata.normalize("NFD", t)
+    t = unicodedata.normalize("NFKD", t)
     t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    t = re.sub(r"[^a-z0-9\s]", " ", t)
     t = re.sub(r"\s+", " ", t)
     return t
 
@@ -42,6 +44,16 @@ def destacar_termos(texto: str, consulta: str) -> str:
     for termo in termos:
         texto = re.sub(rf"({re.escape(termo)})", r"**\1**", texto, flags=re.IGNORECASE)
     return texto
+
+def calcular_threshold(pergunta: str) -> float:
+    """Adapta o limite de similaridade conforme o tamanho da consulta"""
+    n = len(pergunta.split())
+    if n <= 1:
+        return 0.60
+    elif n <= 3:
+        return 0.55
+    else:
+        return 0.50
 
 # -----------------------------
 # CARREGAMENTO
@@ -58,7 +70,6 @@ def carregar_excel(caminho: str, aba: str) -> pd.DataFrame | None:
 df = carregar_excel(ARQUIVO_BASE, ABA)
 
 if df is not None and len(df) > 0:
-    # Garante colunas
     if "frases_alternativas" not in df.columns:
         df["frases_alternativas"] = ""
 
@@ -71,22 +82,21 @@ if df is not None and len(df) > 0:
     )
     df["_token_set"] = df["_desc_norm"].apply(tokenize_set)
 
-    # Mapa para descrição oficial por código
+    # Mapas auxiliares
     code_to_desc = dict(zip(df["codigo"], df["descricao"]))
 
-    # Preparação embeddings
+    # Embeddings da base
     descricoes = [normalize(d) for d in df["descricao"].tolist()]
     codigos = df["codigo"].tolist()
     modulos = df.get("modulo", [""] * len(df)).tolist()
     saps = df.get("sap_system", [""] * len(df)).tolist()
-    embeddings = MODELO.encode(descricoes, convert_to_tensor=True)
+    embeddings = MODELO.encode(descricoes, convert_to_tensor=True, normalize_embeddings=True)
 
     # -----------------------------
     # ENTRADA DO USUÁRIO
     # -----------------------------
     consulta = st.text_input("O que você deseja fazer?")
     threshold_exato = 0.85
-    threshold_semantica = 0.52
 
     if consulta:
         consulta_raw = consulta.strip()
@@ -133,9 +143,9 @@ if df is not None and len(df) > 0:
             st.dataframe(best, use_container_width=True)
 
         else:
-            # -------- 2) SEMÂNTICO --------
-            consulta_emb = MODELO.encode(consulta_raw, convert_to_tensor=True)
-            scores = util.cos_sim(consulta_emb, embeddings)[0]
+            # -------- 2) SEMÂNTICO OTIMIZADO --------
+            consulta_emb = MODELO.encode(qn, convert_to_tensor=True, normalize_embeddings=True)
+            scores = util.cos_sim(consulta_emb, embeddings)[0].cpu().numpy()
 
             resultados = sorted(
                 zip(descricoes, codigos, modulos, saps, scores),
@@ -143,12 +153,15 @@ if df is not None and len(df) > 0:
                 reverse=True
             )
 
+            threshold_semantica = calcular_threshold(consulta_raw)
             best_per_code = {}
             for desc_phrase, cod, mod, sap, score in resultados:
                 s = float(score)
                 if s >= threshold_semantica:
-                    if cod not in best_per_code or s > best_per_code[cod]["score"]:
-                        best_per_code[cod] = {"score": s, "mod": mod, "sap": sap}
+                    bonus = 0.05 if qn in desc_phrase else 0.0
+                    s_final = s + bonus
+                    if cod not in best_per_code or s_final > best_per_code[cod]["score"]:
+                        best_per_code[cod] = {"score": s_final, "mod": mod, "sap": sap}
 
             if best_per_code:
                 rows = []
@@ -161,14 +174,7 @@ if df is not None and len(df) > 0:
                         "SAP": (info["sap"] if info["sap"] else "—"),
                     })
                 df_out = pd.DataFrame(rows)
-                st.success(f"{len(df_out)} transações encontradas (Semântico, deduplicado)")
+                st.success(f"{len(df_out)} transações encontradas (Semântico otimizado)")
                 st.markdown(df_out.to_markdown(index=False), unsafe_allow_html=True)
             else:
                 st.warning("Nenhum resultado encontrado.")
-
-
-
-
-
-
-
