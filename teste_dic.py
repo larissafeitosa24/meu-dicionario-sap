@@ -139,7 +139,7 @@ if df is not None and len(df) > 0:
     consulta = st.text_input("🧠 O que você deseja fazer?")
 
     # 🔹 Opções pré-definidas de filtro
-    opcoes_filtro = ["Auditoria", "Contrato", "Projeto", "Pagamento", "Orçamento", "Risco", "Controle", "Financeiro", "Compras", "Manutenção"]
+    opcoes_filtro = ["Auditoria", "Contrato", "Projeto", "Pagamento", "Orçamento", "Risco", "Controle", "Financeiro", "Compras", "Manutenção","Programa","Contábil"]
     filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave (opcional)", opcoes_filtro)
     filtro_livre = st.text_input("➕ Filtro adicional (palavras separadas por ponto e vírgula)", placeholder="Ex: planejamento; indicador")
 
@@ -239,3 +239,4 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
