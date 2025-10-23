@@ -2,7 +2,7 @@ import nltk
 nltk.download('rslp', quiet=True)
 import streamlit as st
 import pandas as pd
-import re, unicodedata, difflib
+import re, unicodedata, difflib, numpy as np
 from sentence_transformers import SentenceTransformer, util
 from nltk.stem import RSLPStemmer
 
@@ -43,17 +43,23 @@ st.write(
 )
 
 # -----------------------------
-# DOWNLOAD DE MODELOS NECESSÁRIOS
-# -----------------------------
-nltk.download('rslp', quiet=True)
-
-# -----------------------------
-# PARÂMETROS
+# PARÂMETROS / MODELO
 # -----------------------------
 ARQUIVO_BASE = "transacoes_sap.xlsx"
 ABA = "Sheet1"
-MODELO = SentenceTransformer("multi-qa-mpnet-base-dot-v1")
+MODELO = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 stemmer = RSLPStemmer()
+
+# -----------------------------
+# SINÔNIMOS DE ALTO IMPACTO
+# -----------------------------
+SINONIMOS = {
+    "exibir": ["mostrar", "visualizar", "consultar"],
+    "mostrar": ["exibir", "visualizar", "consultar"],
+    "pedido": ["ordem", "requisição", "compra"],
+    "compras": ["pedido", "requisição", "ordem"],
+    "contrato": ["acordo", "fornecedor", "negociação"],
+}
 
 # -----------------------------
 # FUNÇÕES AUXILIARES
@@ -80,17 +86,26 @@ def destacar_termos(texto: str, consulta: str) -> str:
 def calcular_threshold(pergunta: str) -> float:
     n = len(pergunta.split())
     if n <= 1:
-        return 0.60
-    elif n <= 3:
-        return 0.55
-    else:
         return 0.50
+    elif n <= 3:
+        return 0.47
+    else:
+        return 0.45
 
 def stem(texto):
     try:
         return stemmer.stem(texto.lower())
     except:
         return texto.lower()
+
+def expandir_termos(q: str) -> str:
+    tokens = q.split()
+    expandido = []
+    for t in tokens:
+        expandido.append(t)
+        if t in SINONIMOS:
+            expandido.extend(SINONIMOS[t])
+    return " ".join(expandido)
 
 def aplicar_filtro(df, selecionadas):
     """Filtra por palavras do multiselect"""
@@ -101,7 +116,7 @@ def aplicar_filtro(df, selecionadas):
     return df[mask]
 
 # -----------------------------
-# CARREGAMENTO
+# CARREGAMENTO E EMBEDDINGS (CACHE)
 # -----------------------------
 @st.cache_data
 def carregar_excel(caminho: str, aba: str) -> pd.DataFrame | None:
@@ -112,6 +127,10 @@ def carregar_excel(caminho: str, aba: str) -> pd.DataFrame | None:
         return None
     return df
 
+@st.cache_data
+def gerar_embeddings(textos):
+    return MODELO.encode(textos, convert_to_tensor=True, normalize_embeddings=True)
+
 df = carregar_excel(ARQUIVO_BASE, ABA)
 
 if df is not None and len(df) > 0:
@@ -120,7 +139,6 @@ if df is not None and len(df) > 0:
 
     df["frases_alternativas"] = df["frases_alternativas"].fillna("").astype(str)
 
-    # --- verificação automática se a coluna 'modulo' está vazia ---
     if "modulo" not in df.columns:
         df["modulo"] = ""
     mostrar_modulo = not df["modulo"].fillna("").str.strip().eq("").all()
@@ -133,11 +151,11 @@ if df is not None and len(df) > 0:
 
     code_to_desc = dict(zip(df["codigo"], df["descricao"]))
 
-    descricoes = [normalize(d) for d in df["descricao"].tolist()]
+    descricoes = [stem(normalize(d)) for d in df["descricao"].tolist()]
     codigos = df["codigo"].tolist()
     modulos = df.get("modulo", [""] * len(df)).tolist()
     saps = df.get("sap_system", [""] * len(df)).tolist()
-    embeddings = MODELO.encode(descricoes, convert_to_tensor=True, normalize_embeddings=True)
+    embeddings = gerar_embeddings(descricoes)
 
     # -----------------------------
     # ENTRADAS DO USUÁRIO
@@ -149,13 +167,12 @@ if df is not None and len(df) > 0:
     filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave", opcoes_filtro)
     consulta = st.text_input("🧠 Busca livre (opcional)")
 
-    # Executa se houver filtro OU busca
     if filtro_multiselect or consulta.strip():
         consulta_raw = consulta.strip()
         qn = normalize(consulta_raw)
+        qn_expandido = expandir_termos(qn)
         qtokens = tokenize_set(consulta_raw)
 
-        # Caso sem busca (só filtro)
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
             df_filtrado = aplicar_filtro(df[["descricao", "codigo", "sap_system"]], filtro_multiselect)
@@ -213,7 +230,7 @@ if df is not None and len(df) > 0:
 
         else:
             # -------- 2) SEMÂNTICO --------
-            consulta_emb = MODELO.encode(qn, convert_to_tensor=True, normalize_embeddings=True)
+            consulta_emb = MODELO.encode(qn_expandido, convert_to_tensor=True, normalize_embeddings=True)
             scores = util.cos_sim(consulta_emb, embeddings)[0].cpu().numpy()
 
             resultados = sorted(
@@ -227,8 +244,8 @@ if df is not None and len(df) > 0:
 
             for desc_phrase, cod, mod, sap, score in resultados:
                 s = float(score)
-                bonus_literal = 0.07 if qn in desc_phrase else 0.0
-                bonus_stem = 0.05 if stem(qn) in [stem(w) for w in desc_phrase.split()] else 0.0
+                bonus_literal = 0.1 if qn in desc_phrase else 0.0
+                bonus_stem = 0.07 if stem(qn) in [stem(w) for w in desc_phrase.split()] else 0.0
                 s_final = s + bonus_literal + bonus_stem
 
                 if s_final >= threshold_semantica or bonus_literal > 0:
