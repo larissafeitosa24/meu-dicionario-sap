@@ -5,7 +5,6 @@ import pandas as pd
 import re, unicodedata, difflib
 from sentence_transformers import SentenceTransformer, util
 from nltk.stem import RSLPStemmer
-import nltk
 
 # -----------------------------
 # AJUSTE DE LAYOUT (CSS CUSTOM)
@@ -121,6 +120,11 @@ if df is not None and len(df) > 0:
 
     df["frases_alternativas"] = df["frases_alternativas"].fillna("").astype(str)
 
+    # --- verificação automática se a coluna 'modulo' está vazia ---
+    if "modulo" not in df.columns:
+        df["modulo"] = ""
+    mostrar_modulo = not df["modulo"].fillna("").str.strip().eq("").all()
+
     df["_desc_norm"] = df["descricao"].apply(normalize)
     df["_alt_list_norm"] = df["frases_alternativas"].apply(
         lambda s: [normalize(p) for p in s.split(";") if p.strip()]
@@ -140,7 +144,7 @@ if df is not None and len(df) > 0:
     # -----------------------------
     opcoes_filtro = [
         "Auditoria", "Programa", "Compras", "Contratos",
-        "Orçamento", "Planejamento", "Projetos","Materiais","Contábil"
+        "Orçamento", "Planejamento", "Projetos", "Materiais", "Contábil"
     ]
     filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave", opcoes_filtro)
     consulta = st.text_input("🧠 Busca livre (opcional)")
@@ -154,7 +158,7 @@ if df is not None and len(df) > 0:
         # Caso sem busca (só filtro)
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
-            df_filtrado = aplicar_filtro(df[["descricao", "codigo", "modulo", "sap_system"]], filtro_multiselect)
+            df_filtrado = aplicar_filtro(df[["descricao", "codigo", "sap_system"]], filtro_multiselect)
             if not df_filtrado.empty:
                 st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
                 st.dataframe(df_filtrado, use_container_width=True)
@@ -186,20 +190,23 @@ if df is not None and len(df) > 0:
             )
             overlap_hits.sort_values("__sim__", ascending=False, inplace=True)
 
+        cols_base = ["descricao", "codigo", "sap_system"]
+        cols_show = cols_base + ["modulo"] if mostrar_modulo else cols_base
+
         if not equal_hits.empty:
-            out = equal_hits[["descricao", "codigo", "modulo", "sap_system"]].drop_duplicates("codigo")
+            out = equal_hits[cols_show].drop_duplicates("codigo")
             out = aplicar_filtro(out, filtro_multiselect)
             st.success(f"{len(out)} resultado(s) encontrados (Expandido)")
             st.dataframe(out, use_container_width=True)
 
         elif not pref_hits.empty:
-            out = pref_hits[["descricao", "codigo", "modulo", "sap_system"]].drop_duplicates("codigo")
+            out = pref_hits[cols_show].drop_duplicates("codigo")
             out = aplicar_filtro(out, filtro_multiselect)
             st.success(f"{len(out)} resultado(s) encontrados (Expandido com prefixo)")
             st.dataframe(out, use_container_width=True)
 
         elif not overlap_hits.empty:
-            best = overlap_hits.iloc[[0]][["descricao", "codigo", "modulo", "sap_system"]]
+            best = overlap_hits.iloc[[0]][cols_show]
             best = aplicar_filtro(best, filtro_multiselect)
             st.success("1 resultado encontrado (Expandido por overlap)")
             st.dataframe(best, use_container_width=True)
@@ -232,20 +239,25 @@ if df is not None and len(df) > 0:
                 rows = []
                 for cod, info in sorted(best_per_code.items(), key=lambda it: it[1]["score"], reverse=True):
                     desc_oficial = code_to_desc.get(cod, "")
-                    rows.append({
+                    base_row = {
                         "descricao": desc_oficial,
                         "Transação": cod,
-                        "Módulo": (info["mod"] if info["mod"] else "—"),
                         "SAP": (info["sap"] if info["sap"] else "—"),
-                    })
+                    }
+                    if mostrar_modulo:
+                        base_row["Módulo"] = (info["mod"] if info["mod"] else "—")
+                    rows.append(base_row)
+
                 df_out = pd.DataFrame(rows)
                 df_out = aplicar_filtro(df_out, filtro_multiselect)
                 if not df_out.empty:
                     st.success(f"{len(df_out)} transações encontradas (Semântico aprimorado)")
                     df_out["Descrição"] = df_out["descricao"].apply(lambda d: destacar_termos(d, consulta_raw))
-                    st.markdown(df_out[["Descrição","Transação","Módulo","SAP"]].to_markdown(index=False), unsafe_allow_html=True)
+                    colunas_final = ["Descrição", "Transação", "SAP"]
+                    if mostrar_modulo:
+                        colunas_final.insert(2, "Módulo")
+                    st.markdown(df_out[colunas_final].to_markdown(index=False), unsafe_allow_html=True)
                 else:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
-
