@@ -112,12 +112,13 @@ def expandir_termos(q: str) -> str:
     return " ".join(expandido)
 
 def aplicar_filtro(df, selecionadas):
-    """Filtra por palavras do multiselect"""
-    palavras = [normalize(p) for p in selecionadas]
-    if not palavras:
-        return df
-    mask = df["descricao"].apply(lambda d: all(p in normalize(d) for p in palavras))
-    return df[mask]
+if not selecionadas:
+return df
+
+if "Grupo" not in df.columns:
+return df
+
+return df[df["Grupo"].isin(selecionadas)]
 
 # -----------------------------
 # CARREGAMENTO E EMBEDDINGS (CACHE)
@@ -182,7 +183,7 @@ if df is not None and len(df) > 0:
 
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
-            df_filtrado = aplicar_filtro(df, filtro_multiselect)
+            df_filtrado = aplicar_filtro(df[["descricao", "codigo", "sap_system"]], filtro_multiselect)
             if not df_filtrado.empty:
                 st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
                 st.dataframe(df_filtrado, use_container_width=True)
@@ -285,5 +286,4 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
-
 
