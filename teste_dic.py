@@ -182,7 +182,7 @@ if df is not None and len(df) > 0:
 
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
-            df_filtrado = aplicar_filtro(df[["Grupo"]], filtro_multiselect)
+            df_filtrado = aplicar_filtro(df, filtro_multiselect)
             if not df_filtrado.empty:
                 st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
                 st.dataframe(df_filtrado, use_container_width=True)
@@ -285,4 +285,5 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
