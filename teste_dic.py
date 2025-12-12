@@ -154,6 +154,7 @@ if df is not None and len(df) > 0:
     df["_token_set"] = df["_desc_norm"].apply(tokenize_set)
 
     code_to_desc = dict(zip(df["codigo"], df["descricao"]))
+    code_to_group = dict(zip(df["codigo"],df["Grupo"]))
 
     descricoes = [stem(normalize(d)) for d in df["descricao"].tolist()]
     codigos = df["codigo"].tolist()
@@ -182,7 +183,7 @@ if df is not None and len(df) > 0:
 
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
-            df_filtrado = aplicar_filtro(df[["descricao", "codigo", "sap_system"]], filtro_multiselect)
+            df_filtrado = aplicar_filtro(df, filtro_multiselect)
             if not df_filtrado.empty:
                 st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
                 st.dataframe(df_filtrado, use_container_width=True)
@@ -214,7 +215,7 @@ if df is not None and len(df) > 0:
             )
             overlap_hits.sort_values("__sim__", ascending=False, inplace=True)
 
-        cols_base = ["descricao", "codigo", "sap_system"]
+        cols_base = ["Grupo","descricao", "codigo", "sap_system"]
         cols_show = cols_base + ["modulo"] if mostrar_modulo else cols_base
 
         if not equal_hits.empty:
@@ -264,6 +265,7 @@ if df is not None and len(df) > 0:
                 for cod, info in sorted(best_per_code.items(), key=lambda it: it[1]["score"], reverse=True):
                     desc_oficial = code_to_desc.get(cod, "")
                     base_row = {
+                        "Grupo": code_to_group.get(cod,""),
                         "descricao": desc_oficial,
                         "Transação": cod,
                         "SAP": (info["sap"] if info["sap"] else "—"),
@@ -285,4 +287,5 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
 
