@@ -184,12 +184,14 @@ if df is not None and len(df) > 0:
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
             df_filtrado = aplicar_filtro(df, filtro_multiselect)
-            if not df_filtrado.empty:
-                st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
-                st.dataframe(df_filtrado, use_container_width=True)
-            else:
-                st.warning("Nenhuma transação encontrada com esses filtros.")
-            st.stop()
+            
+            df_out = df_filtrado[
+                ["codigo", "descricao", "Grupo", "sap_system"]
+                ].rename(columns={"codigo": "Transação"})
+            
+            st.dataframe(df_out, use_container_width=True)
+        else:
+            st.warning("Nenhuma transação encontrada com esses filtros.")
 
         # -------- 1) EXPANDIDO --------
         mask_equal_desc = (df["_desc_norm"] == qn)
@@ -287,5 +289,4 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
-
 
