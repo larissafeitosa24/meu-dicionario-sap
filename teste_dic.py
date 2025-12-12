@@ -112,13 +112,12 @@ def expandir_termos(q: str) -> str:
     return " ".join(expandido)
 
 def aplicar_filtro(df, selecionadas):
-if not selecionadas:
-return df
-
-if "Grupo" not in df.columns:
-return df
-
-return df[df["Grupo"].isin(selecionadas)]
+    if not selecionadas:
+        return df
+    
+    if "Grupo" not in df.columns:
+        return df
+    return df[df["Grupo"].isin(selecionadas)]
 
 # -----------------------------
 # CARREGAMENTO E EMBEDDINGS (CACHE)
