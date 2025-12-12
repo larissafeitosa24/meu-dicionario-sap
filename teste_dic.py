@@ -54,11 +54,15 @@ stemmer = RSLPStemmer()
 # SINÔNIMOS DE ALTO IMPACTO
 # -----------------------------
 SINONIMOS = {
-    "exibir": ["mostrar", "visualizar", "consultar"],
+    "exibir": ["mostrar", "visualizar", "consultar","Abrir","Acessar","Visualizar","Mostrar","Ver"],
     "mostrar": ["exibir", "visualizar", "consultar"],
     "pedido": ["ordem", "requisição", "compra"],
     "compras": ["pedido", "requisição", "ordem"],
     "contrato": ["acordo", "fornecedor", "negociação"],
+    "criar": ["Gerar","Produzir","Montar","Construir","Inserir","criar"],
+    "modificar": ["Editar","Alterar","Atualizar","Ajustar","Revisar","modificar"],
+    "analisar": ["Analisar","Auditar","Verificar","Monitorar","Avaliar"],
+    "listar": ["relação de","catalogo de","tabela de","coleção de","registro de"]
 }
 
 # -----------------------------
@@ -161,8 +165,11 @@ if df is not None and len(df) > 0:
     # ENTRADAS DO USUÁRIO
     # -----------------------------
     opcoes_filtro = [
-        "Auditoria", "Programa", "Compras", "Contratos",
-        "Orçamento", "Planejamento", "Projetos", "Materiais", "Contábil"
+        "Auditoria/Segurança", "Programa", "Compras", "Contratos",
+        "Orçamento(FM)", "Planejamento (CO/PS)", "Projetos(PS)", "Materiais & Estoque", "Contábil","Outros",
+        "Relatórios Z-Corporativos","Tesouraria /Cobrança(FI-CA)","Manutenção (PM)","Contábil(FI)","IS-U (Comercial/Medidores)",
+        "Vendas & Faturamento (SD)","Documentos & Saída (DMS/Spool)","Custos/Controladoria (CO)",
+        "Basis/Tecnico","Cadastros Mestre (BP/MM/SD)","Ativo Fixo (FI-AA)","Qualidade (QM)","Documentos (DMS/Spool)"
     ]
     filtro_multiselect = st.multiselect("🔍 Filtro por palavra-chave", opcoes_filtro)
     consulta = st.text_input("🧠 Busca livre (opcional)")
@@ -175,7 +182,7 @@ if df is not None and len(df) > 0:
 
         if not consulta.strip():
             st.info("🔎 Exibindo resultados com base apenas nos filtros aplicados.")
-            df_filtrado = aplicar_filtro(df[["descricao", "codigo", "sap_system"]], filtro_multiselect)
+            df_filtrado = aplicar_filtro(df[["Grupo"]], filtro_multiselect)
             if not df_filtrado.empty:
                 st.success(f"{len(df_filtrado)} transações encontradas (Filtro direto)")
                 st.dataframe(df_filtrado, use_container_width=True)
@@ -278,3 +285,4 @@ if df is not None and len(df) > 0:
                     st.warning("Nenhum resultado após aplicar o filtro.")
             else:
                 st.warning("Nenhum resultado encontrado.")
+
